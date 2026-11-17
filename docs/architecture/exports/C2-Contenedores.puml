@@ -1,0 +1,98 @@
+@startuml C2-Contenedores
+' PlantUML C4 export - Level 2 (Containers). Editable source: ../workspace.dsl
+!include <C4/C4_Container>
+
+title BP Digital Banking - C4 Level 2 (Containers)
+
+Person(cliente, "BP Customer", "Web and mobile")
+Person(operador, "Operator / Support", "Audit and operations")
+
+System_Ext(idp, "OIDC IdP (Production)", "Keycloak locally")
+System_Ext(core, "Core Banking", "WireMock locally")
+System_Ext(compl, "Complementary System", "Mock")
+System_Ext(facial, "Facial Provider", "Simulator")
+System_Ext(email, "Email Provider", "Simulator")
+System_Ext(push, "Push Provider", "Simulator")
+
+System_Boundary(bp, "BP Digital Banking Platform") {
+    Container(spa, "bp-web-spa", "React + TypeScript", "Web SPA. Stores no tokens.")
+    Container(mobile, "bp-mobile-app", "React Native + TypeScript", "Mobile app. PKCE.")
+    Container(edge, "bp-edge (CloudFront + WAF)", "AWS CloudFront + WAF", "CDN + L7 filtering. Not simulated locally.")
+    Container(gateway, "bp-api-gateway", "AWS API Gateway (HTTP API)", "JWT authN, rate limit, routing. Traefik locally.")
+    Container(bff, "bp-bff-web", "NestJS", "BFF: server-side tokens, HttpOnly/Secure cookie + CSRF.")
+    Container(identity, "bp-identity-adapter", "NestJS", "OIDC/JWKS validation, revocation.")
+    Container(customer, "bp-customer-service", "NestJS", "Customer profile (projection).")
+    Container(accounts, "bp-account-product-service", "NestJS", "Accounts and products.")
+    Container(movements, "bp-movements-service", "NestJS", "Movements (CQRS-read).")
+    Container(transfer, "bp-transfer-service", "NestJS", "Transfers: idempotency, Outbox, reconciliation.")
+    Container(payment, "bp-payment-service", "NestJS", "Bill payments.")
+    Container(coreint, "bp-core-integration", "NestJS (ACL)", "ACL to the Core: resilience, idempotency, status.")
+    Container(complint, "bp-complementary-integration", "NestJS (ACL)", "ACL to the complementary system.")
+    Container(onboarding, "bp-onboarding-service", "NestJS", "Facial onboarding + consent.")
+    Container(notification, "bp-notification-service", "NestJS", "Email + push from events.")
+    Container(audit, "bp-audit-service", "NestJS", "Append-only audit, hash chaining.")
+    ContainerDb(aurora, "bp-db-postgres", "PostgreSQL / Aurora", "ACID: orders, idempotency (UNIQUE), Outbox, ACL correlation, operational audit, notifications.")
+    ContainerDb(redis, "bp-cache-redis", "Redis / ElastiCache", "Cache-aside and BFF session.")
+    Container(archive, "bp-audit-archive", "AWS S3 Object Lock (WORM)", "Protected audit retention. Not simulated locally.")
+    ContainerQueue(bus, "bp-event-bus", "RabbitMQ / EventBridge+SQS", "Business events.")
+}
+
+Rel(cliente, spa, "Uses", "HTTPS")
+Rel(cliente, mobile, "Uses", "HTTPS")
+Rel(operador, spa, "Queries", "HTTPS")
+
+Rel(spa, edge, "Delivery and API", "HTTPS")
+Rel(mobile, edge, "Consumes API", "HTTPS")
+Rel(edge, bff, "Routes web traffic", "HTTPS")
+Rel(edge, gateway, "Routes mobile/API", "HTTPS")
+
+Rel(mobile, idp, "Auth Code + PKCE", "HTTPS/OIDC")
+Rel(bff, idp, "Auth Code + PKCE (server-side tokens)", "HTTPS/OIDC")
+Rel(bff, identity, "Validate/renew session", "REST/mTLS")
+Rel(bff, redis, "User session", "RESP/TLS")
+Rel(gateway, identity, "Validate JWT (JWKS)", "REST/mTLS")
+Rel(identity, idp, "Discovery + JWKS", "HTTPS/OIDC")
+Rel(identity, bus, "Publish auth events", "AMQP/SQS")
+
+Rel(bff, gateway, "Aggregates web calls", "REST/HTTPS (Bearer)")
+Rel(gateway, customer, "Query customer", "REST/mTLS")
+Rel(gateway, accounts, "Query accounts/products", "REST/mTLS")
+Rel(gateway, movements, "Query movements", "REST/mTLS")
+Rel(gateway, transfer, "Transfers", "REST/mTLS (Idempotency-Key)")
+Rel(gateway, payment, "Bill payments", "REST/mTLS (Idempotency-Key)")
+Rel(gateway, onboarding, "Onboarding", "REST/mTLS")
+
+Rel(customer, coreint, "Customer data", "REST/mTLS")
+Rel(customer, complint, "Enrichment", "REST/mTLS")
+Rel(customer, redis, "Cache-aside", "RESP/TLS")
+Rel(accounts, coreint, "Accounts/products", "REST/mTLS")
+Rel(accounts, redis, "Cache-aside", "RESP/TLS")
+Rel(movements, coreint, "Movements", "REST/mTLS")
+Rel(movements, redis, "Cache-aside", "RESP/TLS")
+
+Rel(transfer, coreint, "Transfer command/status", "REST/mTLS (Idempotency-Key)")
+Rel(transfer, aurora, "Order + idempotency (UNIQUE) + Outbox (same ACID TX)", "SQL/TLS")
+Rel(transfer, bus, "Publish bp.transfer.*", "AMQP/SQS")
+
+Rel(payment, coreint, "Payment/status", "REST/mTLS (Idempotency-Key)")
+Rel(payment, aurora, "State + idempotency (UNIQUE) + Outbox (same ACID TX)", "SQL/TLS")
+Rel(payment, bus, "Publish bp.payment.*", "AMQP/SQS")
+
+Rel(coreint, core, "Operates and queries status", "HTTPS/mTLS")
+Rel(coreint, aurora, "Operation<->Core correlation", "SQL/TLS")
+Rel(complint, compl, "Detailed data", "HTTPS")
+Rel(onboarding, coreint, "Create customer", "REST/mTLS")
+Rel(onboarding, facial, "Facial verification", "HTTPS")
+Rel(onboarding, bus, "Publish bp.onboarding.*", "AMQP/SQS")
+
+Rel(bus, notification, "Deliver events", "AMQP/SQS")
+Rel(bus, audit, "Deliver auditable events", "AMQP/SQS")
+Rel(notification, email, "Send email", "HTTPS")
+Rel(notification, push, "Send push", "HTTPS")
+Rel(notification, aurora, "Record deliveries", "SQL/TLS")
+Rel(audit, aurora, "Append-only operational log (chained hash)", "SQL/TLS")
+Rel(audit, archive, "Export to protected retention (WORM)", "HTTPS")
+Rel(operador, audit, "Query traceability", "REST/mTLS")
+
+SHOW_LEGEND()
+@enduml

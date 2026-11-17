@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BP Digital Banking — Solution Architecture</title>
+<style>
+  :root { --ink:#16213a; --muted:#5b6678; --brand:#0b5cff; --brand2:#083fb0; --line:#d9e0ec; --bg:#f6f8fc; }
+  @page {
+    size: A4; margin: 22mm 18mm 20mm 18mm;
+    @top-right { content: "BP Digital Banking — Solution Architecture"; font-size: 8pt; color: #8a94a6; }
+    @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 8.5pt; color: #8a94a6; }
+    @bottom-right { content: "v1.0 · 2026-11-17"; font-size: 8pt; color: #b7c0d0; }
+  }
+  @page cover { margin: 0; @top-right { content: normal; } @bottom-center { content: normal; } @bottom-right { content: normal; } }
+  @page landscape { size: A4 landscape; }
+  html { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: #16213a; font-size: 10.3pt; line-height: 1.5; }
+  h1, h2, h3, h4 { color: #083fb0; line-height: 1.25; }
+  h1 { font-size: 17pt; border-bottom: 2px solid #0b5cff; padding-bottom: 4px; margin: 0 0 10px; }
+  h2 { font-size: 12.5pt; margin: 16px 0 6px; }
+  h3 { font-size: 10.8pt; color: #16213a; margin: 12px 0 4px; }
+  p { margin: 5px 0; }
+  a { color: #083fb0; text-decoration: none; }
+  code { font-family: "SF Mono", Menlo, monospace; font-size: 8.8pt; background: #eef2f9; padding: 1px 3px; border-radius: 3px; }
+  ul, ol { margin: 5px 0 5px 0; padding-left: 18px; }
+  li { margin: 2px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 8.9pt; }
+  th, td { border: 1px solid #d9e0ec; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #eaf0fb; color: #083fb0; font-weight: 600; }
+  tr { break-inside: avoid; }
+  .section { break-before: page; }
+  .muted { color: #5b6678; }
+  .tag { display: inline-block; font-size: 7.6pt; font-weight: 700; padding: 1px 6px; border-radius: 10px; vertical-align: middle; }
+  .impl { background: #e2f3e8; color: #0f7a3d; }
+  .prop { background: #fdeede; color: #a9630a; }
+  .notrun { background: #fdeaec; color: #a51d33; }
+  .callout { border-left: 3px solid #0b5cff; background: #f6f8fc; padding: 8px 12px; margin: 10px 0; break-inside: avoid; }
+  .callout.warn { border-left-color: #c9372c; background: #fdeef0; }
+  figure { break-inside: avoid; margin: 10px 0; text-align: center; }
+  figure img { max-width: 100%; max-height: 165mm; border: 1px solid #d9e0ec; }
+  .landscape figure img { max-height: 175mm; }
+  figcaption { font-size: 8.4pt; color: #5b6678; margin-top: 4px; font-style: italic; }
+  .fig-land { page: landscape; break-before: page; }
+  .fig-land h1 { break-after: avoid; margin-bottom: 4px; }
+  .fig-land figure { margin: 4px 0; }
+  .fig-land img { max-width: 100%; max-height: 143mm; }
+
+  /* Cover */
+  .cover { page: cover; position: relative; box-sizing: border-box; width: 210mm; height: 296mm; color: #fff;
+    background: linear-gradient(150deg, #0b2a6b 0%, #0b5cff 60%, #1f78ff 100%); overflow: hidden; }
+  .cover .brand { position: absolute; top: 30mm; left: 24mm; font-size: 20pt; font-weight: 800; letter-spacing: -0.5px; }
+  .cover .brand span { opacity: .85; font-weight: 400; }
+  .cover .mid { position: absolute; top: 150mm; left: 24mm; right: 24mm; }
+  .cover h1 { color: #fff; border: none; font-size: 32pt; margin: 0 0 8px; line-height: 1.12; }
+  .cover .sub { font-size: 13pt; opacity: .92; }
+  .cover .meta { position: absolute; bottom: 26mm; left: 24mm; right: 24mm; font-size: 10pt; opacity: .92; }
+  .cover .meta b { font-weight: 600; }
+  .cover .meta p { margin: 3px 0; }
+  .cover .rule { height: 3px; width: 90px; background: #fff; opacity: .8; margin: 0 0 14px; }
+
+  /* TOC */
+  .toc { break-before: page; }
+  .toc h1 { }
+  .toc ol { list-style: none; padding: 0; counter-reset: toc; font-size: 9.6pt; }
+  .toc ol li { counter-increment: toc; margin: 3px 0; }
+  .toc a { display: block; }
+  .toc a::before { content: counter(toc) ".  "; color: #5b6678; }
+  .toc a::after { content: target-counter(attr(href), page); float: right; color: #5b6678; }
+  .toc .dots { border-bottom: 1px dotted #c3ccdb; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<section class="cover">
+  <div class="brand">BP<span>Bank</span> · Digital Banking</div>
+  <div class="mid">
+    <div class="rule"></div>
+    <h1>Internet Banking<br>Solution Architecture</h1>
+    <div class="sub">Reference architecture for AWS, with a reproducible local Proof of Concept</div>
+  </div>
+  <div class="meta">
+    <p><b>Document:</b> BP-Banking-Solution-Architecture · <b>Version:</b> 1.0 · <b>Date:</b> 2026-11-17</p>
+    <p><b>Audience:</b> Senior Solutions Architect (evaluation) · <b>Language:</b> English</p>
+    <p><b>Status legend:</b> Implemented &amp; tested vs. Proposed production architecture (clearly distinguished throughout).</p>
+  </div>
+</section>
+
+<!-- TOC -->
+<section class="toc">
+  <h1>Table of Contents</h1>
+  <ol>
+    <li><a href="#s1">Executive Summary</a></li>
+    <li><a href="#s2">Business Context and Problem Statement</a></li>
+    <li><a href="#s3">Functional and Non-Functional Requirements</a></li>
+    <li><a href="#s4">Assumptions, Constraints, and Risks</a></li>
+    <li><a href="#s5">Architecture Principles</a></li>
+    <li><a href="#s6">Technology Selection and Alternatives</a></li>
+    <li><a href="#s7">C4 Level 1 — System Context</a></li>
+    <li><a href="#s8">C4 Level 2 — Containers</a></li>
+    <li><a href="#s9">C4 Level 3 — Transfer Service Components</a></li>
+    <li><a href="#s10">C4 Level 3 — Core Integration Components</a></li>
+    <li><a href="#s11">Authentication Architecture (OIDC, OAuth 2.0, PKCE, BFF)</a></li>
+    <li><a href="#s12">Mobile Authentication and Biometric Onboarding</a></li>
+    <li><a href="#s13">Transfer Processing, Idempotency, and Reconciliation</a></li>
+    <li><a href="#s14">Data Architecture and Cache-Aside</a></li>
+    <li><a href="#s15">Audit Architecture and Data Integrity</a></li>
+    <li><a href="#s16">Event-Driven Notifications (Email and Push)</a></li>
+    <li><a href="#s17">AWS Deployment Architecture</a></li>
+    <li><a href="#s18">High Availability and Fault Tolerance</a></li>
+    <li><a href="#s19">Disaster Recovery</a></li>
+    <li><a href="#s20">Security and Regulatory Considerations</a></li>
+    <li><a href="#s21">Observability and Operational Excellence</a></li>
+    <li><a href="#s22">Cost Management and FinOps</a></li>
+    <li><a href="#s23">Local PoC Architecture and AWS Equivalences</a></li>
+    <li><a href="#s24">Validation Evidence and Test Results</a></li>
+    <li><a href="#s25">Architectural Decisions and Trade-offs</a></li>
+    <li><a href="#s26">Evaluation Criteria Traceability</a></li>
+    <li><a href="#s27">Known Limitations and Future Improvements</a></li>
+    <li><a href="#s28">Conclusions</a></li>
+    <li><a href="#s29">Appendices</a></li>
+  </ol>
+  <p class="muted" style="margin-top:14px">Legend: <span class="tag impl">IMPLEMENTED &amp; TESTED</span> capabilities exercised in the local PoC with automated/HTTP tests. <span class="tag prop">PROPOSED</span> production-target architecture (design only). <span class="tag notrun">NOT RUN</span> designed/implemented but not executed in this environment.</p>
+</section>
+
+<!-- 1 -->
+<section class="section" id="s1">
+<h1>1. Executive Summary</h1>
+<p>BP requires an internet-banking platform to let customers query customers/products/historical movements, make own and interbank transfers, pay bills, integrate with a Core Banking system and a complementary customer-information system, send notifications through at least two mechanisms, offer a web SPA and a cross-platform mobile app, authenticate with an existing OAuth 2.0 product, integrate facial-recognition onboarding, support subsequent credential/biometric authentication, audit customer actions, provide persistence optimized for frequent customers, and expose an integration layer with an API Gateway and specialized services — all with security, decoupling, scalability, low latency, high availability, fault tolerance, disaster recovery, monitoring, and auto-healing.</p>
+<p>The proposed solution is a <b>domain-oriented, hexagonal, modular architecture</b> deployed as a small set of decoupled services (not a microservice swarm), with the <b>Core Banking system as the source of truth</b> for balances, movements, and transactions. BP is a layer of <b>experience, orchestration, and security</b>; it never acts as the ledger.</p>
+<p>Anchor decisions: AWS as the target cloud (ECS Fargate, Aurora PostgreSQL, ElastiCache Redis, EventBridge+SQS, CloudFront+WAF, API Gateway, Secrets Manager/KMS, S3 Object Lock); the existing OIDC IdP in production with Keycloak locally; a BFF with HttpOnly cookies for the web and Authorization Code + PKCE for mobile; financial integrity via idempotency keys, explicit transaction states, Transactional Outbox, and reconciliation; and an honest local equivalence that reproduces contracts, domains, flows, events, and logical security without simulating HA/DR guarantees it cannot provide.</p>
+<p>A reproducible local Proof of Concept (pnpm monorepo: NestJS backend, React SPA, PostgreSQL, Redis, RabbitMQ, Keycloak, WireMock) implements and <b>tests</b> the nine priority flows. <b>28 unit tests</b>, <b>17 functional E2E tests</b>, and <b>4 real-authentication E2E tests</b> pass; the SPA builds cleanly. This document distinguishes throughout what is implemented and tested from the proposed production architecture.</p>
+</section>
+
+<!-- 2 -->
+<section class="section" id="s2">
+<h1>2. Business Context and Problem Statement</h1>
+<p>BP is a (fictitious) bank modernizing its internet-banking channel. Customers must self-serve common banking operations across web and mobile while BP integrates with its existing Core Banking system and a complementary customer-information system, and reuses an existing OAuth 2.0/OIDC identity product.</p>
+<h2>2.1 Capabilities required</h2>
+<ul>
+  <li>Query customer, product, and historical-movement information.</li>
+  <li>Own-account and interbank transfers; bill payments.</li>
+  <li>Integration with the Core Banking system (system of record) and a complementary customer system.</li>
+  <li>Notifications through at least two mechanisms (email and push adopted).</li>
+  <li>Web SPA and cross-platform mobile app.</li>
+  <li>Authentication via an existing OAuth 2.0-compatible product (OIDC).</li>
+  <li>Facial-recognition onboarding; subsequent credential/biometric authentication.</li>
+  <li>Auditing of customer actions; persistence optimized for frequent customers.</li>
+  <li>An integration layer with an API Gateway and specialized services.</li>
+</ul>
+<h2>2.2 Guiding principle</h2>
+<p>The Core Banking system owns financial truth. BP orchestrates experience and security, never duplicating or overriding the ledger. <code>HTTP 200 ≠ settled</code>, and a message queue never substitutes for the Core's transactional guarantees.</p>
+</section>
+
+<!-- 3 -->
+<section class="section" id="s3">
+<h1>3. Functional and Non-Functional Requirements</h1>
+<h2>3.1 Functional requirements (selected)</h2>
+<table>
+<tr><th>ID</th><th>Requirement</th><th>Priority</th></tr>
+<tr><td>RF-01/02/03</td><td>Query customer, products, historical movements</td><td>Must</td></tr>
+<tr><td>RF-04/05</td><td>Own-account and interbank transfers</td><td>Must</td></tr>
+<tr><td>RF-06</td><td>Bill payments (initial payment scope — assumption)</td><td>Must</td></tr>
+<tr><td>RF-07/08</td><td>Core Banking and complementary-system integration</td><td>Must</td></tr>
+<tr><td>RF-09</td><td>Notifications via ≥2 mechanisms (email + push)</td><td>Must</td></tr>
+<tr><td>RF-10/11</td><td>Web SPA and cross-platform mobile app</td><td>Must</td></tr>
+<tr><td>RF-12</td><td>OAuth2/OIDC authentication (Authorization Code + PKCE)</td><td>Must</td></tr>
+<tr><td>RF-13</td><td>Facial-recognition onboarding (1:1 + liveness)</td><td>Must</td></tr>
+<tr><td>RF-14</td><td>Subsequent credential/biometric authentication (OS/passkeys)</td><td>Must</td></tr>
+<tr><td>RF-15</td><td>Audit of customer actions</td><td>Must</td></tr>
+<tr><td>RF-16</td><td>Persistence optimized for frequent customers (cache)</td><td>Must</td></tr>
+<tr><td>RF-17</td><td>Integration layer (API Gateway + specialized services)</td><td>Must</td></tr>
+<tr><td>RF-19</td><td>Idempotency of financial operations</td><td>Should</td></tr>
+</table>
+<h2>3.2 Non-functional requirements (selected)</h2>
+<table>
+<tr><th>Category</th><th>Requirement</th></tr>
+<tr><td>Security</td><td>TLS in transit, KMS at rest, MFA/step-up, PKCE for public clients, least privilege, source-account authorization</td></tr>
+<tr><td>Transactional integrity</td><td>Consistency, idempotency, concurrency control, explicit states, reconciliation</td></tr>
+<tr><td>Performance / latency</td><td>Low latency for frequent reads (cache-aside)</td></tr>
+<tr><td>Availability / scalability</td><td>HA (Multi-AZ), horizontal auto scaling</td></tr>
+<tr><td>Resilience</td><td>Fault tolerance, controlled degradation, retries, circuit breaking, bulkheads</td></tr>
+<tr><td>DR</td><td>Defined RTO/RPO strategy</td></tr>
+<tr><td>Observability</td><td>Metrics, structured logs, distributed tracing, alarms</td></tr>
+<tr><td>Auditability</td><td>Append-only, queryable, integrity-verifiable log; minimization</td></tr>
+<tr><td>Compliance</td><td>Subject to an undefined jurisdiction → not asserted (see §20)</td></tr>
+</table>
+</section>
+
+<!-- 4 -->
+<section class="section" id="s4">
+<h1>4. Assumptions, Constraints, and Risks</h1>
+<h2>4.1 Key assumptions</h2>
+<table>
+<tr><th>ID</th><th>Assumption</th></tr>
+<tr><td>S-A1</td><td>Core Banking = source of truth for balances/movements/transactions.</td></tr>
+<tr><td>S-A2</td><td>Payment scope = bill payments (initial).</td></tr>
+<tr><td>S-A3</td><td>The Core supports idempotency propagation and/or operation-status lookup by reference. <b>Pending (P-Core-01).</b></td></tr>
+<tr><td>S-A4</td><td>The production IdP supports standard OIDC (PKCE, JWKS, refresh, MFA); no proprietary features assumed.</td></tr>
+<tr><td>S-A5</td><td>Region <code>us-east-1</code> assumed; data residency/jurisdiction to confirm.</td></tr>
+</table>
+<h2>4.2 Constraints</h2>
+<ul>
+  <li>Core Banking is the system of record; BP does not own financial truth.</li>
+  <li>Authentication uses an existing OAuth 2.0/OIDC product (no in-house IdP).</li>
+  <li>Documentation via the C4 model; AWS as the reference cloud (Azure permitted).</li>
+  <li>The local environment must not simulate HA/DR or security guarantees it cannot provide.</li>
+</ul>
+<h2>4.3 Principal risks</h2>
+<table>
+<tr><th>ID</th><th>Risk</th><th>Mitigation</th></tr>
+<tr><td>R-01</td><td>Core as bottleneck / single point</td><td>Read cache, async, circuit breaker, bulkhead, degradation</td></tr>
+<tr><td>R-02/03</td><td>Transaction duplication / inconsistency</td><td>Idempotency (UNIQUE), explicit states, reconciliation</td></tr>
+<tr><td>R-04</td><td>Mishandling of PII/biometrics</td><td>Minimization, KMS, no biometric templates stored</td></tr>
+<tr><td>R-05</td><td>Secrets in public clients / OAuth misuse</td><td>Auth Code + PKCE, BFF, no secrets in the browser</td></tr>
+<tr><td>R-07</td><td>Compliance claims without a jurisdiction</td><td>No compliance asserted; aligned controls only</td></tr>
+<tr><td>R-15</td><td>Core lacks status lookup → UNKNOWN unresolved</td><td>Robust reconciliation; dependent on P-Core-01</td></tr>
+</table>
+</section>
+
+<!-- 5 -->
+<section class="section" id="s5">
+<h1>5. Architecture Principles</h1>
+<ol>
+  <li><b>Core is the source of truth.</b> BP orchestrates; it never becomes the ledger.</li>
+  <li><b>Financial integrity first.</b> Idempotency, explicit states, no unsafe retries, reconciliation for unknown results.</li>
+  <li><b>Separate commands from events.</b> Synchronous financial commands to the Core; asynchronous informational events for notifications/audit. The queue never provides transactional guarantees.</li>
+  <li><b>Security by default.</b> Tokens out of the browser (BFF), PKCE for public clients, MFA/step-up, mTLS east-west, encryption, least privilege.</li>
+  <li><b>Hexagonal &amp; decoupled.</b> Ports/adapters isolate domain from infrastructure; a single Anti-Corruption Layer wraps the Core.</li>
+  <li><b>Few services, clear boundaries.</b> DDD bounded contexts; avoid microservices by trend.</li>
+  <li><b>Honest equivalence.</b> Local parity for contracts/flows/events, never for HA/DR guarantees.</li>
+  <li><b>Traceability.</b> One C4 model source; consistent <code>bp-*</code> names and <code>bp.&lt;domain&gt;.&lt;fact&gt;.vN</code> events across levels and code.</li>
+</ol>
+</section>
+
+<!-- 6 -->
+<section class="section" id="s6">
+<h1>6. Technology Selection and Alternatives</h1>
+<p>Each decision carries at least two technical justifications and the alternatives considered (full detail in <code>docs/architecture/DECISIONS.md</code>, ADR-0001…0029).</p>
+<table>
+<tr><th>Layer</th><th>Choice</th><th>Justifications (2+)</th><th>Alternatives</th></tr>
+<tr><td>Web SPA</td><td>React + TypeScript</td><td>(1) Shared types with backend/mobile; (2) flexible for the BFF+cookies pattern</td><td>Angular (heavier, less type reuse)</td></tr>
+<tr><td>Mobile</td><td>React Native + TS</td><td>(1) Language/type homogeneity; (2) mature Keychain/Keystore + passkeys</td><td>Flutter (another language/talent)</td></tr>
+<tr><td>Backend</td><td>NestJS + TS (hexagonal)</td><td>(1) Native modularity/DI maps to DDD; (2) TS homogeneity speeds the PoC</td><td>Spring Boot (banking standard, heavier); ASP.NET Core</td></tr>
+<tr><td>Compute</td><td>ECS Fargate</td><td>(1) No node mgmt, auto-healing/scaling; (2) same image local↔prod</td><td>EKS (over-engineering); Lambda (cold starts/limits)</td></tr>
+<tr><td>Operational store</td><td>PostgreSQL / Aurora</td><td>(1) ACID + unique constraints; (2) Multi-AZ, replicas, backups</td><td>RDS PG (less HA); DynamoDB (as AWS alternative)</td></tr>
+<tr><td>Cache/session</td><td>Redis / ElastiCache</td><td>(1) Cache-aside with TTL; (2) BFF session store</td><td>In-process cache; Memcached</td></tr>
+<tr><td>Messaging</td><td>RabbitMQ / EventBridge+SQS</td><td>(1) Covers pub/sub+DLQ semantics; (2) port swaps transport</td><td>SNS (subsumed); LocalStack (only if needed)</td></tr>
+<tr><td>Identity</td><td>Existing OIDC IdP / Keycloak</td><td>(1) Standard OIDC+PKCE+MFA; (2) interchangeable via issuer/JWKS</td><td>Cognito/Auth0 (changes prod IdP)</td></tr>
+<tr><td>Core simulator</td><td>WireMock</td><td>(1) Injects latency/failures/ambiguity; (2) versionable contracts</td><td>Custom Node mock</td></tr>
+</table>
+</section>
+
+<!-- 7 -->
+<section class="section" id="s7">
+<h1>7. C4 Level 1 — System Context</h1>
+<p>Actors (BP Customer, Operator/Support) interact with the BP Digital Banking Platform, which integrates with external systems: the OIDC IdP, Core Banking, the complementary customer system, the facial-verification provider, and email/push providers. The Core and complementary systems are external systems of record/enrichment.</p>
+<figure>
+  <img src="../architecture/rendered/C1-Contexto.png" alt="C4 Level 1 — System Context">
+  <figcaption>Figure 1. C4 Level 1 — System Context. Editable source: <code>docs/architecture/workspace.dsl</code>.</figcaption>
+</figure>
+</section>
+
+<!-- 8 -->
+<section class="fig-land" id="s8">
+<h1 style="break-after:avoid">8. C4 Level 2 — Containers</h1>
+<figure>
+  <img src="../architecture/rendered/C2-Contenedores.png" alt="C4 Level 2 — Containers">
+  <figcaption>Figure 2. C4 Level 2 — Containers. SPA/mobile, edge (CloudFront+WAF), API Gateway, BFF, identity adapter, domain services, ACLs, notification and audit services, and the data/messaging stores. All <code>bp-*</code> names are reused in code.</figcaption>
+</figure>
+</section>
+<section class="section">
+<h2>8.1 Container responsibilities (summary)</h2>
+<table>
+<tr><th>Container</th><th>Responsibility</th></tr>
+<tr><td>bp-web-spa / bp-mobile-app</td><td>Web SPA (no tokens) / mobile app (PKCE)</td></tr>
+<tr><td>bp-edge / bp-api-gateway</td><td>CDN+WAF edge / north-south JWT authN, rate limit, routing</td></tr>
+<tr><td>bp-bff-web / bp-identity-adapter</td><td>Web BFF (server-side tokens, cookie+CSRF) / OIDC JWKS validation</td></tr>
+<tr><td>bp-customer / account-product / movements</td><td>Profile, accounts/products, movements (read, CQRS-read)</td></tr>
+<tr><td>bp-transfer / bp-payment</td><td>Financial command orders (idempotency, Outbox, states, reconciliation)</td></tr>
+<tr><td>bp-core-integration / bp-complementary-integration</td><td>ACL to the Core / ACL to the complementary system</td></tr>
+<tr><td>bp-onboarding / bp-notification / bp-audit</td><td>Facial onboarding / email+push / append-only audit</td></tr>
+<tr><td>bp-db-postgres / bp-cache-redis / bp-event-bus / bp-audit-archive</td><td>ACID store / cache+session / events / WORM retention</td></tr>
+</table>
+</section>
+
+<!-- 9 -->
+<section class="fig-land" id="s9">
+<h1 style="break-after:avoid">9. C4 Level 3 — Transfer Service Components</h1>
+<figure>
+  <img src="../architecture/rendered/C3-Transfer.png" alt="C4 Level 3 — Transfer Service">
+  <figcaption>Figure 3. C4 Level 3 — <code>bp-transfer-service</code>. Controller, use cases, aggregate/state machine, idempotency store (PostgreSQL UNIQUE), repository (ACID), CorePort to the ACL, Outbox publisher, and reconciliation worker.</figcaption>
+</figure>
+</section>
+
+<!-- 10 -->
+<section class="fig-land" id="s10">
+<h1 style="break-after:avoid">10. C4 Level 3 — Core Integration Components</h1>
+<figure>
+  <img src="../architecture/rendered/C3-CoreIntegration.png" alt="C4 Level 3 — Core Integration">
+  <figcaption>Figure 4. C4 Level 3 — <code>bp-core-integration</code> (ACL): inbound API, translator, Core client, resilience policy (circuit breaker/retry/timeout/bulkhead), status query, and correlation repository.</figcaption>
+</figure>
+</section>
+
+<!-- 11 -->
+<section class="section" id="s11">
+<h1>11. Authentication Architecture (OIDC, OAuth 2.0, PKCE, BFF)</h1>
+<p>OAuth 2.0 is authorization; identity is provided by OpenID Connect. Public clients use <b>Authorization Code + PKCE</b> (no client secret in the client).</p>
+<h2>11.1 Web (BFF)</h2>
+<p>The SPA keeps <b>no tokens</b>. <code>bp-bff-web</code> runs Authorization Code + PKCE against the IdP, stores tokens <b>server-side</b> (Redis session) and issues an <b>HttpOnly, Secure, SameSite=strict</b> session cookie plus a <b>CSRF</b> token (double-submit, enforced on state-changing requests). This mitigates XSS token theft and CSRF. <span class="tag impl">IMPLEMENTED &amp; TESTED</span> (backend token verification via JWKS validated; see §24).</p>
+<h2>11.2 Backend authorization</h2>
+<p>Each service validates the token (JWKS), scopes, and <b>source-account authorization</b>; interbank transfers do <b>not</b> validate destination ownership (ADR-0021). Sensitive operations require a valid <b>step-up</b> ACR claim.</p>
+<figure>
+  <img src="../architecture/rendered/seq-01-auth-web-oidc-pkce-bff.png" alt="Web auth sequence">
+  <figcaption>Figure 5. Web authentication — OIDC Authorization Code + PKCE with BFF (incl. invalid state/code and refresh rotation).</figcaption>
+</figure>
+<div class="callout warn"><b>Scope note.</b> The interactive browser login (full Authorization Code + PKCE click-through) was <span class="tag notrun">NOT RUN</span> in this environment (no browser automation). Backend token verification against Keycloak's JWKS is validated by an automated test (§24).</div>
+</section>
+
+<!-- 12 -->
+<section class="section" id="s12">
+<h1>12. Mobile Authentication and Biometric Onboarding</h1>
+<p>Mobile uses <b>Authorization Code + PKCE</b> as a public native client; the refresh token lives in Keychain/Keystore, the access token in memory.</p>
+<h2>12.1 Two distinct biometric concepts</h2>
+<ul>
+  <li><b>Onboarding biometrics</b> = identity verification 1:1 + liveness, a one-time event orchestrated by <code>bp-onboarding-service</code> against the facial provider. BP stores only encrypted evidence/score references — <b>no reusable biometric template</b>.</li>
+  <li><b>Subsequent biometrics</b> = local device unlock (Face ID/fingerprint) or <b>passkeys/WebAuthn</b>. BP stores no templates; the OS releases a credential and the server validates the assertion.</li>
+</ul>
+<figure>
+  <img src="../architecture/rendered/seq-02-auth-mobile-oidc-pkce.png" alt="Mobile auth sequence" style="max-height:120mm">
+  <figcaption>Figure 6. Mobile authentication — OIDC Authorization Code + PKCE and OS/passkey biometrics.</figcaption>
+</figure>
+<figure>
+  <img src="../architecture/rendered/seq-04-onboarding-facial.png" alt="Onboarding sequence" style="max-height:120mm">
+  <figcaption>Figure 7. Facial onboarding (1:1 + liveness) with rejection and provider-unavailable paths. <span class="tag prop">PROPOSED</span> (simulated provider locally).</figcaption>
+</figure>
+</section>
+
+<!-- 13 -->
+<section class="fig-land" id="s13">
+<h1 style="break-after:avoid">13. Transfer Processing, Idempotency, and Reconciliation</h1>
+<figure>
+  <img src="../architecture/rendered/seq-03-transfer-idempotencia-outbox-conciliacion.png" alt="Transfer sequence">
+  <figcaption>Figure 8. Transfer — idempotency (PostgreSQL UNIQUE) + Transactional Outbox + explicit states + reconciliation. <span class="tag impl">IMPLEMENTED &amp; TESTED</span>.</figcaption>
+</figure>
+</section>
+<section class="section">
+<h2>13.1 Guarantees</h2>
+<ul>
+  <li>Mandatory <code>Idempotency-Key</code>; order + idempotency row (UNIQUE) + Outbox event committed in <b>one ACID transaction</b>.</li>
+  <li>Explicit states: <code>PENDING → SUBMITTED → (CONFIRMED | REJECTED | UNKNOWN)</code>; <code>UNKNOWN</code> is resolved only by reconciliation.</li>
+  <li><b>No unsafe retries</b>: on timeout/5xx the order becomes <code>UNKNOWN</code> (the client receives 202 "pending verification"); the Core command is never blindly re-sent.</li>
+  <li>Replaying the same key returns the same result; reusing a key with a different payload returns <code>409</code>.</li>
+  <li><b>Reconciliation</b> (<code>POST /internal/reconcile</code>, ADR-0029): internal-token guard + Postgres advisory lock (no concurrent reconciliation of the same operation), status lookup by reference (never re-executes), attempt recording, events, and audit.</li>
+</ul>
+<div class="callout">All of §13 is exercised by automated tests: successful/rejected/UNKNOWN transfers, idempotent replay, idempotency conflict, step-up, and reconciliation (§24).</div>
+</section>
+
+<!-- 14 -->
+<section class="section" id="s14">
+<h1>14. Data Architecture and Cache-Aside</h1>
+<table>
+<tr><th>Domain</th><th>Source of truth</th><th>Platform persistence</th><th>Cache</th></tr>
+<tr><td>Balances, movements, accounts, transactions</td><td>Core Banking (external)</td><td>Read projections/cache</td><td>Redis (profile, products, movement pages)</td></tr>
+<tr><td>Order workflow state</td><td>Platform (Aurora)</td><td>Aurora (ACID)</td><td>—</td></tr>
+<tr><td>Idempotency</td><td>Platform</td><td>PostgreSQL UNIQUE</td><td>—</td></tr>
+<tr><td>Audit</td><td>Platform</td><td>Append-only + hash chain</td><td>—</td></tr>
+</table>
+<p><b>Cache-Aside</b> (<code>bp-movements-service</code>): read → miss → Core via ACL → cache with short TTL; <code>_cache: HIT|MISS</code> exposed. Balances are treated as highly volatile (minimal/zero TTL; P-Core-02). Official bank data and auxiliary platform data are never conflated. <span class="tag impl">IMPLEMENTED &amp; TESTED</span> (cache MISS→HIT verified).</p>
+<figure>
+  <img src="../architecture/rendered/seq-07-consulta-movimientos-cache-aside.png" alt="Cache-aside sequence" style="max-height:120mm">
+  <figcaption>Figure 9. Movement query — Cache-Aside with HIT/MISS and Core-unavailable degradation.</figcaption>
+</figure>
+</section>
+
+<!-- 15 -->
+<section class="section" id="s15">
+<h1>15. Audit Architecture and Data Integrity</h1>
+<p>Audit records successes, failures, authentication attempts, rejected operations, and security events, with sensitive-data minimization (no passwords, tokens, secrets, or biometric data). The operational log is <b>append-only with hash chaining</b> (<code>hash_n = SHA256(prevHash + record)</code>) in PostgreSQL, enabling tamper detection; a separate <b>protected WORM retention archive</b> (S3 Object Lock) holds the long-term immutable copy.</p>
+<figure>
+  <img src="../architecture/rendered/seq-05-auditoria.png" alt="Audit sequence" style="max-height:120mm">
+  <figcaption>Figure 10. Append-only audit with hash chaining + WORM retention (local vs. AWS distinction below).</figcaption>
+</figure>
+<div class="callout warn"><b>Local vs. AWS.</b> The local PoC implements the append-only operational log with hash chaining (tested). The <b>WORM archive is NOT simulated locally</b> (S3 Object Lock is an AWS-only guarantee) — it is documented as the production target.</div>
+</section>
+
+<!-- 16 -->
+<section class="section" id="s16">
+<h1>16. Event-Driven Notifications (Email and Push)</h1>
+<p>Notifications are a decoupled informational channel (event consumers), never on the transactional path. <code>bp-notification-service</code> consumes <code>bp.transfer.confirmed/failed</code> events and sends <b>email + push</b>, idempotently by <code>eventId</code>, with a Dead Letter Queue on provider failure. It never claims a transfer completed when the state is <code>UNKNOWN</code>/pending. <span class="tag impl">IMPLEMENTED &amp; TESTED</span> (email+push recorded from events; duplicate and provider-failure paths covered).</p>
+<figure>
+  <img src="../architecture/rendered/seq-06-notificaciones-email-push.png" alt="Notifications sequence" style="max-height:120mm">
+  <figcaption>Figure 11. Email + push notifications with per-channel failure, idempotency, and DLQ.</figcaption>
+</figure>
+</section>
+
+<!-- 17 -->
+<section class="fig-land" id="s17">
+<h1 style="break-after:avoid">17. AWS Deployment Architecture</h1>
+<figure>
+  <img src="../architecture/rendered/bp-aws-deployment.png" alt="AWS deployment">
+  <figcaption>Figure 12. AWS Multi-AZ deployment. Route 53 + CloudFront/WAF; API Gateway + ALB; ECS Fargate across two AZs; Aurora writer/reader; ElastiCache primary/replica; EventBridge+SQS+DLQ; Secrets Manager/KMS; CloudWatch/X-Ray; S3 (+WORM). The Core is <b>outside AWS</b>, reached via VPN/Direct Connect. <span class="tag prop">PROPOSED</span>.</figcaption>
+</figure>
+</section>
+<section class="section">
+<h2>17.1 Boundaries</h2>
+<p>Clear separation between Internet (public), the VPC private network (public subnets with ALB/NAT; private subnets with ECS/Aurora/ElastiCache), regional managed services, the Core Banking system (not in AWS), and external providers. Core connectivity uses a private hybrid link (VPN IPsec baseline, Direct Connect for predictable latency/throughput — ADR-0023).</p>
+</section>
+
+<!-- 18 -->
+<section class="section" id="s18">
+<h1>18. High Availability and Fault Tolerance</h1>
+<p><span class="tag prop">PROPOSED</span> production design (not proven by local Docker).</p>
+<table>
+<tr><th>Scenario</th><th>Expected behavior</th></tr>
+<tr><td>ECS task fails</td><td>ALB stops routing; the service launches a replacement (auto-healing); idempotency+Outbox prevent duplication/loss</td></tr>
+<tr><td>AZ fails</td><td>ALB drains the AZ; Aurora failover to standby; Redis replica promotion; reduced capacity until scale-out</td></tr>
+<tr><td>Aurora failover</td><td>Reader promoted; connections recycled; interrupted commands → UNKNOWN → reconciliation</td></tr>
+<tr><td>Redis unavailable</td><td>Cache-aside falls back to the Core (higher latency, never wrong data); circuit breaker protects the Core</td></tr>
+<tr><td>Core unavailable</td><td>Timeout + circuit breaker + bulkhead; reads degrade (503); commands → UNKNOWN; no blind retries</td></tr>
+<tr><td>Notification provider fails</td><td>Retry/backoff → DLQ; the financial operation is unaffected</td></tr>
+</table>
+<div class="callout warn">The local PoC demonstrates the <b>logic</b> (idempotency, UNKNOWN handling, circuit-breaker-style fallbacks, DLQ) but <b>does not prove AWS Multi-AZ availability or fault tolerance</b>, which require the real cloud topology.</div>
+</section>
+
+<!-- 19 -->
+<section class="section" id="s19">
+<h1>19. Disaster Recovery</h1>
+<p><span class="tag prop">PROPOSED</span>. Baseline <b>Backup &amp; Restore</b> (Aurora snapshots + PITR, replicated artifacts/IaC) with an optional <b>Pilot Light</b> (Aurora Global Database + minimal warm infra + Route 53 failover). Proposed objectives, to be validated with the business and the real Core capabilities:</p>
+<table>
+<tr><th>Objective</th><th>Proposed</th><th>Note</th></tr>
+<tr><td>Availability (platform)</td><td>~99.9% monthly</td><td>Cannot exceed the Core's limit</td></tr>
+<tr><td>RTO (primary region)</td><td>≤ 1–4 h</td><td>Depends on DR automation</td></tr>
+<tr><td>RPO</td><td>≤ 5–15 min</td><td>Aurora PITR; official data in the Core</td></tr>
+<tr><td>Read latency p95 (cached)</td><td>&lt; 300–500 ms</td><td>Reads via Redis</td></tr>
+</table>
+<div class="callout warn">These are design objectives, <b>not verified guarantees</b>. DR requires game-day drills to measure real RTO/RPO. The local PoC does not demonstrate DR.</div>
+</section>
+
+<!-- 20 -->
+<section class="section" id="s20">
+<h1>20. Security and Regulatory Considerations</h1>
+<h2>20.1 Security controls</h2>
+<ul>
+  <li>TLS in transit; KMS at rest; WAF at the edge (OWASP, rate limit, bot/geo).</li>
+  <li>BFF with HttpOnly/Secure/SameSite cookies + CSRF; PKCE for public clients; MFA/step-up for sensitive operations.</li>
+  <li>Token (JWKS), scope, and source-account validation at each service; mTLS east-west; least-privilege SGs.</li>
+  <li>Secrets in Secrets Manager; append-only audit with hash chaining; data minimization; no biometric templates stored.</li>
+</ul>
+<h2>20.2 Regulatory posture</h2>
+<div class="callout warn"><b>No compliance certification is claimed.</b> The exercise does not define a jurisdiction, so no conformance with PCI-DSS, GDPR, PSD2, SOC 2, ISO 27001, or any local banking regulation is asserted. The design applies security controls aligned with good practice; formal compliance requires a defined jurisdiction and audit (P-01). No AWS costs or certifications are presented as verified.</div>
+</section>
+
+<!-- 21 -->
+<section class="section" id="s21">
+<h1>21. Observability and Operational Excellence</h1>
+<p><span class="tag prop">PROPOSED</span> for AWS; the PoC implements structured logging, correlation IDs, and health endpoints.</p>
+<ul>
+  <li><b>Metrics:</b> ECS CPU/memory, API/ALB p50/p95/p99 and 4xx/5xx, Aurora connections/replica-lag/failovers, Redis hit ratio, SQS/DLQ depth, ACL circuit state, UNKNOWN count, business volumes.</li>
+  <li><b>Alarms:</b> p95 latency, 5xx rate, DLQ&gt;0, unresolved UNKNOWN, open circuit breaker, replica lag, low hit ratio.</li>
+  <li><b>Tracing/logs:</b> X-Ray/OTel distributed traces with <code>correlationId</code>; structured JSON logs without unnecessary PII.</li>
+  <li><b>Runbooks:</b> DLQ reprocessing, UNKNOWN reconciliation, circuit-open handling, Aurora failover, DR game day.</li>
+</ul>
+</section>
+
+<!-- 22 -->
+<section class="section" id="s22">
+<h1>22. Cost Management and FinOps</h1>
+<p><span class="tag prop">PROPOSED</span>. No current prices are included; <code>docs/architecture/COSTS.md</code> provides formulas and variables for AWS Pricing Calculator across compute, database, cache, networking, API Gateway, messaging, logs/observability, security, backups, and DR.</p>
+<h2>22.1 FinOps recommendations</h2>
+<ul>
+  <li>Savings Plans/Reserved for the stable baseline (Fargate, Aurora, Redis); Spot only for tolerant workloads.</li>
+  <li>Aurora Serverless v2 for variable traffic; VPC endpoints + CloudFront to cut egress/NAT.</li>
+  <li>Tiered log/trace retention and sampling (without giving up WORM audit).</li>
+  <li>Tagging + AWS Budgets + cost-anomaly alerts; continuous right-sizing. Always keep Multi-AZ (HA not sacrificed for cost).</li>
+</ul>
+<div class="callout warn">No AWS costs are presented as verified; figures must be computed with current regional rates and confirmed volumes.</div>
+</section>
+
+<!-- 23 -->
+<section class="section" id="s23">
+<h1>23. Local PoC Architecture and AWS Equivalences</h1>
+<p>The PoC is a pnpm monorepo: a NestJS backend (hexagonal), a React SPA, and infrastructure in Docker (PostgreSQL, Redis, RabbitMQ, Keycloak, WireMock). It reproduces contracts, domains, flows, events, and logical security — not HA/DR guarantees.</p>
+<table>
+<tr><th>Responsibility</th><th>Local</th><th>AWS</th><th>Validated locally</th><th>Requires cloud</th></tr>
+<tr><td>Edge/CDN/WAF</td><td>(not simulated)</td><td>CloudFront+WAF</td><td>—</td><td>WAF, edge latency, DDoS</td></tr>
+<tr><td>Compute</td><td>NestJS (ts-node)</td><td>ECS Fargate</td><td>App logic, flows</td><td>Scale/HA</td></tr>
+<tr><td>Operational store</td><td>PostgreSQL</td><td>Aurora</td><td>Schema, ACID TX, constraints</td><td>Failover, replicas, backups</td></tr>
+<tr><td>Cache</td><td>Redis</td><td>ElastiCache</td><td>Cache-aside, TTL</td><td>HA, real latency</td></tr>
+<tr><td>Messaging</td><td>RabbitMQ</td><td>EventBridge+SQS</td><td>Pub/sub, DLQ, retries</td><td>Routing, archive/replay, scale</td></tr>
+<tr><td>Identity</td><td>Keycloak</td><td>Existing OIDC IdP</td><td>Auth Code+PKCE, JWKS</td><td>Proprietary IdP features</td></tr>
+<tr><td>Core</td><td>WireMock</td><td>Real Core via ACL</td><td>Contracts, timeouts, ambiguity</td><td>Real settlement/reconciliation</td></tr>
+<tr><td>Audit retention</td><td>(not simulated)</td><td>S3 Object Lock (WORM)</td><td>—</td><td>Immutable retention</td></tr>
+<tr><td>HA/DR</td><td>(not simulated)</td><td>Multi-AZ, DR</td><td>Nothing</td><td>Everything</td></tr>
+</table>
+<p>Event contracts are kept transport-agnostic via an <code>EventBus</code> port (RabbitMQ ↔ EventBridge+SQS), so RabbitMQ validates the semantics without being presented as a 1:1 equivalent of SNS+SQS+EventBridge.</p>
+</section>
+
+<!-- 24 -->
+<section class="section" id="s24">
+<h1>24. Validation Evidence and Test Results</h1>
+<p>Results are real; PASS/FAIL/NOT RUN are never invented. Full detail in <code>docs/TESTING.md</code>.</p>
+<h2>24.1 Automated tests — executed</h2>
+<table>
+<tr><th>Suite</th><th>Count</th><th>Result</th></tr>
+<tr><td>Unit — domain (state machine, idempotency, cache-aside, audit hashing)</td><td>17</td><td>PASS</td></tr>
+<tr><td>Unit — api (TransferService scenarios, NotificationHandler)</td><td>11</td><td>PASS</td></tr>
+<tr><td>Functional E2E (Supertest, Docker infra, DEV_AUTH_BYPASS)</td><td>17</td><td>PASS</td></tr>
+<tr><td>Real-auth E2E (no bypass, real Keycloak token + JWKS)</td><td>4</td><td>PASS</td></tr>
+</table>
+<h2>24.2 Builds / validation — executed</h2>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>API typecheck (tsc)</td><td>PASS</td></tr>
+<tr><td>Web build (tsc + vite build)</td><td>PASS (44 modules)</td></tr>
+<tr><td>docker compose config</td><td>PASS (6 images)</td></tr>
+<tr><td>Structurizr DSL validate</td><td>PASS</td></tr>
+<tr><td>Model validator (validate.mjs)</td><td>PASS</td></tr>
+<tr><td>Diagram render (17 images) + visual inspection</td><td>PASS</td></tr>
+</table>
+<h2>24.3 NOT RUN (documented)</h2>
+<ul>
+  <li>Interactive OIDC browser login (Authorization Code + PKCE click-through) — backend token verification is tested; browser flow NOT RUN (no browser automation).</li>
+  <li>SPA live UI click-through — the SPA builds; the running UI is NOT RUN.</li>
+  <li>Live notification-provider DLQ (covered by a unit test); mobile app (reserved).</li>
+</ul>
+<div class="callout warn">Local Docker tests do <b>not</b> prove AWS Multi-AZ availability or disaster recovery, and the interactive browser login was <b>not</b> tested.</div>
+</section>
+
+<!-- 25 -->
+<section class="section" id="s25">
+<h1>25. Architectural Decisions and Trade-offs</h1>
+<p>Selected ADRs (full set: <code>docs/architecture/DECISIONS.md</code>, ADR-0001…0029). Each carries ≥2 justifications and alternatives.</p>
+<table>
+<tr><th>ADR</th><th>Decision</th><th>Key trade-off</th></tr>
+<tr><td>0010</td><td>BFF for the web SPA</td><td>Extra container + server-side sessions vs. token safety</td></tr>
+<tr><td>0014</td><td>Hexagonal + single ACL to the Core</td><td>Translation layer vs. isolation/resilience</td></tr>
+<tr><td>0015/0016</td><td>Idempotency keys + Transactional Outbox</td><td>At-least-once (idempotent consumers) vs. no dual-write/lost events</td></tr>
+<tr><td>0017/0022/0029</td><td>Reconciliation (endpoint + advisory lock)</td><td>Depends on Core status lookup (P-Core-01)</td></tr>
+<tr><td>0018</td><td>Append-only audit + WORM retention</td><td>WORM not simulated locally</td></tr>
+<tr><td>0019</td><td>PostgreSQL ACID (DynamoDB as AWS alternative)</td><td>One engine (simplicity) vs. Dynamo TTL/scale</td></tr>
+<tr><td>0021</td><td>Source-account authorization</td><td>Correct interbank semantics (no destination ownership)</td></tr>
+<tr><td>0026</td><td>ts-node + DEV_AUTH_BYPASS (PoC only)</td><td>Fast iteration vs. must be disabled in prod</td></tr>
+</table>
+</section>
+
+<!-- 26 -->
+<section class="section" id="s26">
+<h1>26. Evaluation Criteria Traceability</h1>
+<div class="callout warn"><b>Source note.</b> The literal 15 evaluation criteria were not present in the repository's source material. The matrix below is reconstructed strictly from the documented capabilities and non-functional requirements of the exercise statement, and is flagged as <b>pending cross-check</b> against the official rubric; it does not invent criteria.</div>
+<table>
+<tr><th>#</th><th>Criterion (reconstructed)</th><th>Where addressed</th><th>Status</th></tr>
+<tr><td>1</td><td>Customer/product/movement queries</td><td>§8, §14; bp-customer/account/movements</td><td>Implemented &amp; tested</td></tr>
+<tr><td>2</td><td>Transfers (own + interbank)</td><td>§13; bp-transfer-service</td><td>Implemented &amp; tested</td></tr>
+<tr><td>3</td><td>Bill payments</td><td>§3, §8; bp-payment-service</td><td>Designed (pattern mirrors transfer)</td></tr>
+<tr><td>4</td><td>Core Banking integration</td><td>§10; bp-core-integration (ACL)</td><td>Implemented &amp; tested (WireMock)</td></tr>
+<tr><td>5</td><td>Complementary-system integration</td><td>§8; bp-complementary-integration</td><td>Implemented &amp; tested (mock)</td></tr>
+<tr><td>6</td><td>Notifications (≥2 mechanisms)</td><td>§16; email + push</td><td>Implemented &amp; tested</td></tr>
+<tr><td>7</td><td>Web SPA + cross-platform mobile</td><td>§8, §23; apps/web (built), apps/mobile (reserved)</td><td>SPA implemented; mobile reserved</td></tr>
+<tr><td>8</td><td>OAuth2/OIDC authentication (PKCE)</td><td>§11; BFF + JWKS</td><td>Backend tested; browser flow NOT RUN</td></tr>
+<tr><td>9</td><td>Facial-recognition onboarding</td><td>§12; bp-onboarding-service</td><td>Designed (simulated)</td></tr>
+<tr><td>10</td><td>Subsequent credential/biometric auth</td><td>§12; OS/passkeys</td><td>Designed</td></tr>
+<tr><td>11</td><td>Action auditing</td><td>§15; bp-audit-service</td><td>Implemented &amp; tested</td></tr>
+<tr><td>12</td><td>Persistence optimized for frequent customers</td><td>§14; cache-aside (Redis)</td><td>Implemented &amp; tested</td></tr>
+<tr><td>13</td><td>Integration layer (API Gateway + services)</td><td>§8; bp-api-gateway + domain services</td><td>Implemented &amp; tested (local gateway)</td></tr>
+<tr><td>14</td><td>Security/decoupling/scalability/latency/HA/FT/DR/monitoring/auto-healing</td><td>§17–§21</td><td>Design; logic tested, HA/DR proposed</td></tr>
+<tr><td>15</td><td>C4 documentation (Context/Container/Component) + complementary diagrams</td><td>§7–§10; 7 sequences; AWS deployment</td><td>Implemented (rendered &amp; validated)</td></tr>
+</table>
+</section>
+
+<!-- 27 -->
+<section class="section" id="s27">
+<h1>27. Known Limitations and Future Improvements</h1>
+<ul>
+  <li><b>Interactive OIDC browser login</b> and <b>SPA live UI</b> were NOT RUN here (no browser automation); backend auth is tested.</li>
+  <li><b>P-Core-01 / ADR-0022:</b> the Core operation-status lookup is assumed; reconciliation correctness in production depends on it.</li>
+  <li><b>CI/CD and IaC</b> are designed but not fully implemented (a CI workflow is provided; IaC such as CDK/Terraform is future work).</li>
+  <li><b>HA/DR/WORM</b> are production-target and not simulated locally.</li>
+  <li><b>Jurisdiction/compliance</b> undefined → no conformance claimed.</li>
+  <li><b>Mobile app</b> and <b>payment service</b> runtime are reserved/partially designed (payment mirrors the tested transfer pattern).</li>
+</ul>
+</section>
+
+<!-- 28 -->
+<section class="section" id="s28">
+<h1>28. Conclusions</h1>
+<p>The proposed architecture is a defensible, domain-oriented, hexagonal design that keeps the Core Banking system as the source of truth and prioritizes financial integrity, security, resilience, and traceability over unnecessary complexity. The AWS target architecture provides HA, scalability, observability, and a credible DR path, while a reproducible local PoC implements and <b>tests</b> the priority flows end-to-end (idempotent transfers with reconciliation, cache-aside, event-driven notifications, append-only audit, and real token-level authentication).</p>
+<p>The submission clearly separates implemented-and-tested capabilities from the proposed production architecture, makes no unverified availability/DR/compliance/cost claims, and preserves full traceability from the C4 model to the code via consistent <code>bp-*</code> and event naming. It is suitable for evaluation by a senior solutions architect and ready to evolve toward production with the open items (P-Core-01, IaC, interactive OIDC validation) resolved.</p>
+</section>
+
+<!-- 29 -->
+<section class="section" id="s29">
+<h1>29. Appendices</h1>
+<h2>A. Business event catalog</h2>
+<p><code>bp.transfer.requested/confirmed/failed/unknown.v1</code>, <code>bp.payment.requested/confirmed/failed.v1</code>, <code>bp.onboarding.verified/rejected.v1</code>, <code>bp.auth.login.succeeded/failed.v1</code>, <code>bp.auth.stepup.required/completed.v1</code>, <code>bp.security.suspicious.v1</code>, <code>bp.notification.sent/failed.v1</code>. Common envelope: <code>eventId, occurredAt, correlationId, idempotencyKey, producer, schemaVersion, payload</code>. Delivery at-least-once (Outbox) → idempotent consumers.</p>
+<h2>B. Repository layout</h2>
+<p><code>apps/{api,web,mobile}</code>, <code>packages/{contracts,domain,shared}</code>, <code>infrastructure/{docker,mocks,keycloak,scripts}</code>, <code>docs/{architecture,API.md,TESTING.md,WORKLOG.md}</code>, <code>docker-compose.yml</code>.</p>
+<h2>C. Key API endpoints</h2>
+<p><code>GET /v1/customers/me</code>, <code>GET /v1/accounts</code>, <code>GET /v1/accounts/:id/movements</code>, <code>POST /v1/transfers</code> + <code>GET /v1/transfers/:id</code>, <code>GET /v1/audit</code>, BFF <code>/auth/{login,callback,session,logout}</code>, internal <code>POST /internal/reconcile</code>. Full reference: <code>docs/API.md</code>.</p>
+<h2>D. ADR index</h2>
+<p>ADR-0001…0029 in <code>docs/architecture/DECISIONS.md</code> (cloud, stack, patterns, idempotency/Outbox, reconciliation, audit, source-account authorization, English-only policy, reconciliation endpoint).</p>
+<h2>E. How to reproduce</h2>
+<p><code>corepack pnpm install</code> → <code>pnpm env:up</code> → <code>pnpm migrate &amp;&amp; pnpm seed</code> → <code>pnpm test</code> / <code>pnpm --filter @bp/api test:e2e</code>. Full instructions: <code>README.md</code>.</p>
+</section>
+
+</body>
+</html>

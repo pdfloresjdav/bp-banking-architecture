@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/core/customers/.*/accounts"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": [
+      { "accountId": "acc-001", "ownerUserId": "user-1", "product": "CHECKING", "balanceMinor": 1000000, "currency": "USD" },
+      { "accountId": "acc-002", "ownerUserId": "user-1", "product": "SAVINGS", "balanceMinor": 500000, "currency": "USD" }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "POST",
+    "urlPath": "/core/transfers"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "status": "CONFIRMED", "coreReference": "CORE-{{randomValue length=8 type='ALPHANUMERIC'}}" },
+    "transformers": ["response-template"]
+  }
+}

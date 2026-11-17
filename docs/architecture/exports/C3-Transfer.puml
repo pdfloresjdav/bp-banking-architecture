@@ -1,0 +1,41 @@
+@startuml C3-Transfer
+' PlantUML C4 export - Level 3 (bp-transfer-service components). Editable source: ../workspace.dsl
+!include <C4/C4_Component>
+
+title bp-transfer-service - C4 Level 3 (Components)
+
+Container(gateway, "bp-api-gateway", "AWS API Gateway / Traefik", "North-south entry")
+Container(coreint, "bp-core-integration", "NestJS (ACL)", "ACL to the Core")
+ContainerDb(aurora, "bp-db-postgres", "PostgreSQL / Aurora", "Orders + idempotency (UNIQUE) + Outbox (ACID)")
+ContainerQueue(bus, "bp-event-bus", "RabbitMQ / EventBridge+SQS", "Events")
+
+Container_Boundary(transfer, "bp-transfer-service") {
+    Component(ctrl, "TransferController", "NestJS Controller", "REST API. Requires Idempotency-Key, token and step-up.")
+    Component(createUC, "CreateTransferUseCase", "Application Service", "Authorizes SOURCE account (no destination ownership on interbank), applies idempotency, persists PENDING, invokes Core, resolves state.")
+    Component(statusUC, "GetTransferStatusUseCase", "Application Service", "Queries the status of an order.")
+    Component(agg, "TransferAggregate", "Domain Model", "State machine PENDING->SUBMITTED->(CONFIRMED|REJECTED|UNKNOWN).")
+    Component(repo, "TransferRepository", "Port + TypeORM Adapter", "Order + idempotency + Outbox in one ACID transaction.")
+    Component(idem, "IdempotencyStore", "Port + Adapter", "INSERT with UNIQUE(idempotency_key) constraint in PostgreSQL (same TX).")
+    Component(coreport, "CorePort (CoreIntegrationClient)", "Port + HTTP Adapter", "Outbound to bp-core-integration.")
+    Component(outbox, "OutboxPublisher", "Outbox Relay", "Publishes events at-least-once.")
+    Component(reconc, "ReconciliationWorker", "Scheduled Worker", "Resolves UNKNOWN/PENDING by querying the Core.")
+}
+
+Rel(gateway, ctrl, "POST /v1/transfers, GET /v1/transfers/{id}", "REST/mTLS")
+Rel(ctrl, createUC, "Invokes")
+Rel(ctrl, statusUC, "Invokes")
+Rel(createUC, agg, "Applies rules and transitions")
+Rel(createUC, idem, "Checks/registers Idempotency-Key")
+Rel(createUC, repo, "Persists order + Outbox (same TX)")
+Rel(createUC, coreport, "Sends transfer command")
+Rel(statusUC, repo, "Reads state")
+Rel(reconc, repo, "Reads UNKNOWN/PENDING orders")
+Rel(reconc, coreport, "Queries real status")
+Rel(idem, aurora, "INSERT UNIQUE(idempotency_key)", "SQL/TLS")
+Rel(repo, aurora, "Reads/writes order, idempotency and Outbox (ACID)", "SQL/TLS")
+Rel(outbox, aurora, "Reads pending Outbox", "SQL/TLS")
+Rel(outbox, bus, "Publishes bp.transfer.* (at-least-once)", "AMQP/SQS")
+Rel(coreport, coreint, "POST transfer / GET status", "REST/mTLS (Idempotency-Key)")
+
+SHOW_LEGEND()
+@enduml

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@bp/contracts": ["../../packages/contracts/src"],
+      "@bp/domain": ["../../packages/domain/src"],
+      "@bp/shared": ["../../packages/shared/src"]
+    }
+  },
+  "include": ["src/**/*", "test/**/*"]
+}

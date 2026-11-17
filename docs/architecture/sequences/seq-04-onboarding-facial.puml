@@ -1,0 +1,49 @@
+@startuml seq-04-onboarding-facial
+title Onboarding with facial recognition (identity verification 1:1 + liveness)
+autonumber
+
+actor "Prospect" as user
+participant "bp-mobile-app" as app
+participant "bp-api-gateway" as gw
+participant "bp-onboarding-service" as onb
+participant "Facial Provider\n(local simulator)" as face
+participant "bp-core-integration\n(ACL)" as acl
+participant "Core Banking" as core
+participant "S3 (KMS)\nevidence" as s3
+participant "bp-event-bus" as bus
+participant "bp-audit-service" as audit
+
+user -> app : Start onboarding + consent
+app -> gw : POST /v1/onboarding (data + consent)
+gw -> onb : Create case (STARTED state)
+onb --> app : onboardingId + onboarding token
+
+user -> app : Capture selfie + document
+app -> gw : POST /v1/onboarding/{id}/facial (images)
+gw -> onb : Facial verification
+onb -> face : verify(selfie, document)  [liveness + 1:1 match]
+
+alt Liveness OK and matchScore >= threshold
+    face --> onb : { liveness: true, matchScore }
+    onb -> s3 : Store ENCRYPTED evidence/score (no biometric template)
+    onb -> acl : Create customer in the Core
+    acl -> core : createCustomer
+    core --> acl : customerId
+    acl --> onb : OK (customerId)
+    onb -> onb : VERIFIED state
+    onb -> bus : publish bp.onboarding.verified.v1
+    onb --> app : Onboarding approved
+else Failed liveness or matchScore < threshold
+    face --> onb : { liveness:false } / low score
+    onb -> onb : REJECTED state
+    onb -> bus : publish bp.onboarding.rejected.v1
+    onb --> app : Rejected / retry
+else Facial provider unavailable
+    face --> onb : timeout / 5xx
+    onb -> onb : PENDING_REVIEW state
+    onb --> app : Under review (not auto-approved)
+end
+
+bus -> audit : deliver bp.onboarding.*.v1 (minimizing sensitive data)
+note over onb : This is ONBOARDING biometrics (1:1).\nDistinct from subsequent device biometrics (OS/passkeys).
+@enduml

@@ -1,0 +1,132 @@
+# BP Digital Banking - local PoC environment.
+# Data services (postgres/redis/rabbitmq) are exposed ONLY on loopback (127.0.0.1).
+# The API runs via the "app" profile or directly on the host (see README).
+name: bp-banking
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bp}
+      POSTGRES_DB: ${POSTGRES_DB:-bp}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bp} -d ${POSTGRES_DB:-bp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [bpnet]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [bpnet]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-bp}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-bp}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks: [bpnet]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "${KEYCLOAK_PORT:-8088}:8080"
+    volumes:
+      - ./infrastructure/keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo done"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+    networks: [bpnet]
+
+  wiremock-core:
+    image: wiremock/wiremock:3.9.1
+    command: ["--port", "8080", "--global-response-templating", "--disable-banner"]
+    ports:
+      - "${CORE_PORT:-8090}:8080"
+    volumes:
+      - ./infrastructure/mocks/wiremock-core:/home/wiremock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/__admin/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [bpnet]
+
+  wiremock-complementary:
+    image: wiremock/wiremock:3.9.1
+    command: ["--port", "8080", "--global-response-templating", "--disable-banner"]
+    ports:
+      - "${COMPLEMENTARY_PORT:-8091}:8080"
+    volumes:
+      - ./infrastructure/mocks/wiremock-complementary:/home/wiremock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/__admin/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [bpnet]
+
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    environment:
+      NODE_ENV: development
+      API_PORT: 3001
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-bp}:${RABBITMQ_PASSWORD:-bp}@rabbitmq:5672
+      CORE_BASE_URL: http://wiremock-core:8080
+      COMPLEMENTARY_BASE_URL: http://wiremock-complementary:8080
+      OIDC_ISSUER: http://keycloak:8080/realms/bp
+      OIDC_JWKS_URI: http://keycloak:8080/realms/bp/protocol/openid-connect/certs
+      DEV_AUTH_BYPASS: ${DEV_AUTH_BYPASS:-false}
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      wiremock-core: { condition: service_healthy }
+    networks: [bpnet]
+
+networks:
+  bpnet:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitdata:

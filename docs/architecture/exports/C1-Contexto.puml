@@ -1,0 +1,29 @@
+@startuml C1-Contexto
+' PlantUML C4 export - Level 1 (Context). Editable source: ../workspace.dsl
+!include <C4/C4_Context>
+
+title BP Digital Banking - C4 Level 1 (Context)
+
+Person(cliente, "BP Customer", "Digital-banking user (web and mobile).")
+Person(operador, "Operator / Support", "Queries audit and operational status.")
+
+System(bp, "BP Digital Banking Platform", "Layer of experience, orchestration, and security. Not a ledger.")
+
+System_Ext(idp, "OIDC IdP (Production)", "OAuth2/OIDC. Keycloak locally.")
+System_Ext(core, "Core Banking", "Source of truth: balances, accounts, movements, transactions. WireMock locally.")
+System_Ext(compl, "Complementary Customer System", "Detailed customer information. Mock locally.")
+System_Ext(facial, "Facial Verification Provider", "Liveness + 1:1 match. Simulator locally.")
+System_Ext(email, "Email Provider", "Email notifications.")
+System_Ext(push, "Mobile Push Provider", "Push notifications (APNs/FCM).")
+
+Rel(cliente, bp, "Queries, transfers, and pays", "HTTPS")
+Rel(operador, bp, "Queries audit and status", "HTTPS")
+Rel(bp, idp, "Authenticates users (OIDC Auth Code + PKCE)", "HTTPS/OIDC")
+Rel(bp, core, "Queries and executes operations", "HTTPS/mTLS")
+Rel(bp, compl, "Retrieves detailed information", "HTTPS")
+Rel(bp, facial, "Verifies identity during onboarding", "HTTPS")
+Rel(bp, email, "Sends email notifications", "HTTPS")
+Rel(bp, push, "Sends push notifications", "HTTPS")
+
+SHOW_LEGEND()
+@enduml

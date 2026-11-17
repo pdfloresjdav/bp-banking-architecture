@@ -1,0 +1,35 @@
+@startuml seq-05-auditoria
+title Activity audit - append-only with hash chaining + WORM retention
+autonumber
+
+participant "Domain services\n(transfer/payment/identity/...)" as svc
+participant "bp-event-bus" as bus
+participant "bp-audit-service" as audit
+database "bp-db-postgres\n(append-only operational log)" as pg
+participant "bp-audit-archive\n(S3 Object Lock WORM)" as worm
+
+== Recording auditable events ==
+svc -> bus : publish event (success / failure / auth attempt / rejection / security)
+bus -> audit : deliver event (at-least-once)
+audit -> audit : Idempotency by eventId (ignore duplicates)
+audit -> audit : Minimize PII; compute hash = H(prevHash + payload)
+audit -> pg : INSERT append-only (eventId, hash, prevHash, ts)
+
+alt eventId already recorded (bus duplicate)
+    pg --> audit : UNIQUE(eventId) conflict
+    audit -> audit : Discard (already audited)
+else new
+    pg --> audit : OK (hash chain extended)
+end
+
+== Export to protected retention ==
+audit -> worm : Export signed batch to WORM (S3 Object Lock)
+note over worm : Immutable by retention policy.\nLOCALLY not simulated (documented only).
+
+== Traceability query ==
+actor "Operator/Support" as op
+op -> audit : GET /v1/audit?filters
+audit -> pg : Query the operational log
+audit -> audit : Verify chain integrity (re-hash)
+audit --> op : Results + integrity status (OK / BROKEN)
+@enduml

@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/core/accounts/.*/movements"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "items": [
+        { "movementId": "m1", "accountId": "acc-001", "date": "2026-11-01", "amountMinor": -2500, "currency": "USD", "description": "Compra supermercado" },
+        { "movementId": "m2", "accountId": "acc-001", "date": "2026-11-02", "amountMinor": 120000, "currency": "USD", "description": "Deposito nomina" },
+        { "movementId": "m3", "accountId": "acc-001", "date": "2026-11-05", "amountMinor": -4500, "currency": "USD", "description": "Pago servicio" }
+      ],
+      "nextCursor": null,
+      "pageSize": 3
+    }
+  }
+}

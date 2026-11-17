@@ -1,0 +1,99 @@
+name: CI
+
+# Continuous integration for the BP Digital Banking PoC.
+# Runs installation, type checking, builds, unit tests, and architecture/diagram validation.
+# No production deployments and no real AWS credentials are required.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: Type check, build, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Type check (all workspaces)
+        run: pnpm -r typecheck
+
+      - name: Build shared packages
+        run: pnpm --filter @bp/contracts --filter @bp/shared --filter @bp/domain build
+
+      - name: Build web SPA
+        run: pnpm --filter @bp/web build
+
+      - name: Unit tests (domain)
+        run: pnpm --filter @bp/domain test
+
+      - name: Unit tests (api)
+        run: pnpm --filter @bp/api test
+
+      - name: Architecture model validation (dependency-free)
+        run: node docs/architecture/validate.mjs
+
+  diagrams:
+    name: C4 DSL and PlantUML validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Structurizr DSL
+        run: |
+          docker run --rm -v "$PWD/docs/architecture":/work -w /work \
+            structurizr/structurizr validate -w workspace.dsl
+
+      - name: Validate PlantUML sources (syntax check, render to /tmp)
+        run: |
+          docker run --rm -v "$PWD/docs/architecture":/work -w /work \
+            plantuml/plantuml -checkonly "exports/*.puml" "sequences/*.puml" "deployment/*.puml"
+
+  e2e:
+    name: E2E (Docker services)
+    runs-on: ubuntu-latest
+    # Best-effort end-to-end run against the local infrastructure. Keycloak is not required for the
+    # functional suite (it uses DEV_AUTH_BYPASS); the real-auth suite needs Keycloak and is run separately.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+      - name: Start infrastructure
+        run: docker compose up -d postgres redis rabbitmq wiremock-core wiremock-complementary
+      - name: Wait for health
+        run: |
+          for s in postgres redis rabbitmq wiremock-core wiremock-complementary; do
+            for i in $(seq 1 30); do
+              status=$(docker inspect --format '{{.State.Health.Status}}' "bp-banking-${s}-1" 2>/dev/null || echo starting)
+              [ "$status" = "healthy" ] && break
+              sleep 3
+            done
+          done
+          docker compose ps
+      - name: Migrate and seed
+        run: pnpm --filter @bp/api migration:run && pnpm --filter @bp/api seed
+      - name: Functional E2E
+        run: DEV_AUTH_BYPASS=true INTERNAL_API_TOKEN=ci-internal-token pnpm --filter @bp/api exec jest --config test/jest-e2e.config.js test/app.e2e-spec.ts --runInBand --forceExit
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

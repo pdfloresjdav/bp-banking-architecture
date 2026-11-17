@@ -1,0 +1,13 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "urlPath": "/core/transfers",
+    "bodyPatterns": [{ "matchesJsonPath": "$[?(@.destinationAccountId == 'acc-reject')]" }]
+  },
+  "response": {
+    "status": 422,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "status": "REJECTED", "reason": "insufficient_funds" }
+  }
+}

@@ -1,0 +1,47 @@
+@startuml seq-01-auth-web-oidc-pkce-bff
+title Web authentication - OIDC Authorization Code + PKCE with BFF
+autonumber
+
+actor "Customer" as cliente
+participant "bp-web-spa" as spa
+participant "bp-bff-web" as bff
+database "bp-cache-redis\n(session)" as redis
+participant "OIDC IdP\n(Keycloak/prod)" as idp
+participant "bp-event-bus" as bus
+participant "bp-audit-service" as audit
+
+cliente -> spa : Click "Sign in"
+spa -> bff : GET /auth/login
+bff -> bff : Generate state + PKCE (verifier/challenge)
+bff -> redis : Store state + code_verifier (short TTL)
+bff --> spa : 302 -> IdP /authorize (code_challenge, S256)
+spa -> idp : Redirect /authorize
+cliente -> idp : Credentials + MFA
+
+alt Successful authentication
+    idp --> bff : 302 /auth/callback?code&state
+    bff -> redis : Retrieve and validate state + code_verifier
+    bff -> idp : POST /token (code + code_verifier)  [Authorization Code + PKCE]
+    idp --> bff : id_token + access_token + refresh_token
+    bff -> redis : Store tokens server-side (session)
+    bff --> spa : 302 app + Set-Cookie (HttpOnly, Secure, SameSite=strict) + CSRF token
+    bff -> bus : publish bp.auth.login.succeeded.v1
+    bus -> audit : deliver event
+    note over spa : The SPA NEVER receives or stores tokens
+else Invalid state/code or failed MFA
+    idp --> bff : error / invalid code
+    bff --> spa : 401 Unauthorized
+    bff -> bus : publish bp.auth.login.failed.v1
+    bus -> audit : deliver event (failed attempt)
+end
+
+== Subsequent authenticated call ==
+spa -> bff : GET /v1/... (session cookie + CSRF header)
+bff -> bff : Validate cookie + CSRF (double-submit)
+bff -> redis : Retrieve access_token
+alt access_token expired
+    bff -> idp : refresh_token (rotation)
+    idp --> bff : new tokens
+end
+bff -> spa : Aggregated response
+@enduml

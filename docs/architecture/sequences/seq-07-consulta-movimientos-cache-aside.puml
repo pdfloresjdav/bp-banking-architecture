@@ -1,0 +1,37 @@
+@startuml seq-07-consulta-movimientos-cache-aside
+title Movement query - Cache-Aside (read, CQRS-read)
+autonumber
+
+actor "Customer" as cliente
+participant "bp-api-gateway" as gw
+participant "bp-movements-service" as mov
+database "bp-cache-redis" as redis
+participant "bp-core-integration\n(ACL)" as acl
+participant "Core Banking" as core
+
+cliente -> gw : GET /v1/accounts/{id}/movements?cursor
+gw -> mov : Forward (Bearer validated)
+mov -> mov : Validate token + ACCOUNT AUTHORIZATION (subject ownership)
+
+mov -> redis : GET movements:{account}:{cursor}
+alt HIT (valid cache)
+    redis --> mov : page of movements
+    mov --> gw : 200 (from cache)
+else MISS
+    redis --> mov : empty
+    mov -> acl : getMovements(account, cursor)  [timeout]
+    alt Core responds
+        acl -> core : query movements
+        core --> acl : page
+        acl --> mov : page
+        mov -> redis : SET with short TTL (volatile data)
+        mov --> gw : 200 (from Core)
+    else Core unavailable (open circuit / timeout)
+        acl --> mov : error / UNKNOWN
+        mov --> gw : 503 degraded (or stale cache flagged as such, if applicable)
+        note over mov : No fabricated data; unavailability is reported.
+    end
+end
+
+note over mov, redis : Balance is treated as HIGHLY volatile:\nminimal TTL or no cache (P-Core-02). Invalidation on operation events.
+@enduml

@@ -1,0 +1,40 @@
+@startuml C3-CoreIntegration
+' PlantUML C4 export - Level 3 (bp-core-integration / ACL components). Editable source: ../workspace.dsl
+!include <C4/C4_Component>
+
+title bp-core-integration (ACL) - C4 Level 3 (Components)
+
+Container(transfer, "bp-transfer-service", "NestJS", "Transfer command")
+Container(payment, "bp-payment-service", "NestJS", "Payment command")
+Container(customer, "bp-customer-service", "NestJS", "Customer query")
+Container(accounts, "bp-account-product-service", "NestJS", "Accounts/products query")
+Container(movements, "bp-movements-service", "NestJS", "Movements query")
+System_Ext(core, "Core Banking", "System of record. WireMock locally.")
+ContainerDb(aurora, "bp-db-postgres", "PostgreSQL / Aurora", "Operation<->Core correlation")
+
+Container_Boundary(coreint, "bp-core-integration") {
+    Component(api, "CoreIntegrationApi", "NestJS Controller", "Internal REST API for transfer/payment/read services.")
+    Component(acl, "AclTranslator", "Mapper", "Translates BP domain model <-> Core contract; normalizes errors.")
+    Component(client, "CoreClient", "HTTP Client Adapter", "Executes the operation. Propagates Idempotency-Key/operationId.")
+    Component(resil, "ResiliencePolicy", "Resilience", "Circuit breaker + retry backoff/jitter + timeout + bulkhead.")
+    Component(status, "CoreStatusQuery", "HTTP Client Adapter", "getOperationStatus: status by reference (unknown result).")
+    Component(corr, "CorrelationRepository", "Port + Adapter", "Map of BP operation <-> Core reference.")
+}
+
+Rel(transfer, api, "POST transfer / GET status", "REST/mTLS (Idempotency-Key)")
+Rel(payment, api, "POST payment / GET status", "REST/mTLS (Idempotency-Key)")
+Rel(customer, api, "Customer query", "REST/mTLS")
+Rel(accounts, api, "Accounts/products query", "REST/mTLS")
+Rel(movements, api, "Movements query", "REST/mTLS")
+Rel(api, acl, "Normalizes request/response")
+Rel(acl, client, "Executes the translated operation")
+Rel(acl, status, "Status query by reference")
+Rel(client, resil, "Applies circuit breaker/retry/timeout")
+Rel(status, resil, "Applies circuit breaker/timeout")
+Rel(resil, core, "Calls the Core Banking system", "HTTPS/mTLS")
+Rel(client, corr, "Stores operation<->Core correlation")
+Rel(status, corr, "Resolves the Core reference")
+Rel(corr, aurora, "Reads/writes correlation", "SQL/TLS")
+
+SHOW_LEGEND()
+@enduml

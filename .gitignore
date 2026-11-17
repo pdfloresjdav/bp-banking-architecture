@@ -1,0 +1,27 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+*.tsbuildinfo
+
+# env & secrets (NUNCA commitear secretos reales)
+.env
+.env.local
+*.local
+
+# tests
+coverage/
+
+# logs
+*.log
+logs/
+
+# os/editor
+.DS_Store
+.idea/
+.vscode/
+
+# NOTE: docs/architecture/rendered/ (images) ARE versioned as evidence.

@@ -1,0 +1,49 @@
+@startuml seq-02-auth-mobile-oidc-pkce
+title Mobile authentication - OIDC Authorization Code + PKCE (public native client)
+autonumber
+
+actor "Customer" as cliente
+participant "bp-mobile-app" as app
+participant "OS: Keychain/Keystore" as ks
+participant "OIDC IdP\n(Keycloak/prod)" as idp
+participant "bp-api-gateway" as gw
+participant "bp-identity-adapter" as idn
+participant "bp-event-bus" as bus
+participant "bp-audit-service" as audit
+
+cliente -> app : Open the app / Sign in
+app -> app : Generate PKCE (verifier/challenge) + state
+app -> idp : Open the system browser /authorize (code_challenge S256)
+cliente -> idp : Credentials + MFA
+
+alt Successful authentication
+    idp --> app : Redirect to app (deep link) ?code&state
+    app -> idp : POST /token (code + code_verifier)  [no client secret]
+    idp --> app : id_token + access_token + refresh_token
+    app -> ks : Store refresh_token in secure storage
+    note over app : Access token in memory; refresh in Keychain/Keystore
+else Authentication error
+    idp --> app : error
+    app -> cliente : Show sign-in error
+end
+
+== Authenticated call ==
+app -> gw : GET /v1/accounts  (Authorization: Bearer access_token)
+gw -> idn : Validate JWT (JWKS) + scopes
+alt Valid token
+    idn --> gw : OK (claims/permissions)
+    gw -> app : Response
+else Invalid/expired token
+    idn --> gw : 401
+    gw --> app : 401
+    app -> idp : refresh_token (rotation)
+    idp --> app : new tokens
+    gw -> bus : (via identity) publish bp.auth.login.failed.v1 if refresh fails
+    bus -> audit : deliver event
+end
+
+== Subsequent biometrics (local unlock) ==
+cliente -> app : Face ID / fingerprint / passkey
+app -> ks : Release refresh_token / WebAuthn credential
+note over app, ks : BP does NOT store biometric templates; it is the OS/passkey
+@enduml

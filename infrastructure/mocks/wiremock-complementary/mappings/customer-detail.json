@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/complementary/customers/.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "segment": "RETAIL",
+      "customerSince": "2019-03-15",
+      "preferredChannel": "mobile",
+      "riskLevel": "LOW"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+@startuml seq-03-transfer-idempotencia-outbox-conciliacion
+title Transfer - Idempotency + Transactional Outbox + States + Reconciliation
+autonumber
+
+actor "Customer" as cliente
+participant "bp-api-gateway" as gw
+participant "bp-transfer-service" as tx
+database "bp-db-postgres\n(order+idem+outbox)" as pg
+participant "bp-core-integration\n(ACL)" as acl
+participant "Core Banking" as core
+participant "bp-event-bus" as bus
+participant "bp-notification-service" as notif
+participant "bp-audit-service" as audit
+
+cliente -> gw : POST /v1/transfers (Idempotency-Key, source, destination, amount)
+gw -> tx : Forward (Bearer validated at the edge)
+tx -> tx : Validate token, scopes and SOURCE-account AUTHORIZATION\n(interbank: do NOT validate destination ownership)
+
+alt Missing step-up for a sensitive operation
+    tx --> gw : 401 step_up_required
+    gw --> cliente : Request second factor (ACR)
+    note over tx : Client retries with a valid step-up ACR
+end
+
+== Idempotency + atomic persistence ==
+tx -> pg : BEGIN TX
+tx -> pg : INSERT order (PENDING) + INSERT UNIQUE(idempotency_key) + INSERT outbox(bp.transfer.requested.v1)
+alt Idempotency-Key already exists (UNIQUE violation)
+    pg --> tx : conflict
+    tx -> pg : ROLLBACK
+    tx -> pg : Read the previous order result
+    tx --> gw : 200/409 with the SAME result (no re-execution)
+    note over tx : Safe replay: no double processing
+else New key
+    pg --> tx : COMMIT
+end
+
+== Execution against the Core (synchronous command) ==
+tx -> acl : POST transfer (Idempotency-Key / operationId)  [timeout]
+acl -> acl : Circuit breaker + retry(backoff) ONLY for transient/idempotent errors
+acl -> core : Execute transfer
+
+alt CONFIRMED
+    core --> acl : Confirmed (coreRef)
+    acl --> tx : CONFIRMED (coreRef)
+    tx -> pg : UPDATE order=CONFIRMED + outbox(bp.transfer.confirmed.v1)
+    tx --> gw : 200 Confirmed
+else REJECTED (rules/balance)
+    core --> acl : Rejected (reason)
+    acl --> tx : REJECTED
+    tx -> pg : UPDATE order=REJECTED + outbox(bp.transfer.failed.v1)
+    tx --> gw : 422 Rejected
+else UNKNOWN (timeout / 5xx / open circuit)
+    acl --> tx : UNKNOWN (no confirmation)
+    tx -> pg : UPDATE order=UNKNOWN + outbox(bp.transfer.unknown.v1)
+    tx --> gw : 202 Pending verification (NOT assumed settled)
+    note over tx, core : HTTP 200 != settled. No blind retry.
+end
+
+== Event publication (Outbox relay, at-least-once) ==
+pg -> bus : OutboxPublisher publishes pending events
+bus -> notif : deliver bp.transfer.confirmed/failed.v1
+bus -> audit : deliver bp.transfer.*.v1 (incl. requested/unknown)
+
+== Reconciliation (periodic worker, only old UNKNOWN/PENDING) ==
+tx -> pg : Read stale UNKNOWN/PENDING orders
+tx -> acl : getOperationStatus(operationId)  [ADR-0022, depends on the Core]
+acl -> core : Query status by reference
+alt Core returns CONFIRMED/REJECTED
+    core --> acl : real status
+    acl --> tx : real status
+    tx -> pg : UPDATE order=real status + outbox(confirmed/failed)
+else Still unresolved
+    tx -> pg : Keep UNKNOWN + operational alert
+end
+@enduml

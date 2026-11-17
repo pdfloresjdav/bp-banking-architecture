@@ -1,0 +1,118 @@
+@startuml bp-aws-deployment
+' BP AWS deployment (Multi-AZ). Renderable offline: !include <C4/C4_Deployment> (bundled stdlib).
+!include <C4/C4_Deployment>
+LAYOUT_LEFT_RIGHT()
+
+title BP Digital Banking - AWS infrastructure deployment (Multi-AZ)
+
+Person(cliente, "BP Customer", "Web and mobile")
+
+' ---------------- Internet ----------------
+Deployment_Node(internet, "Internet", "Public zone") {
+    Deployment_Node(r53, "Amazon Route 53", "DNS + health checks") {
+    }
+    Deployment_Node(cf, "Amazon CloudFront + AWS WAF", "CDN + L7 filtering (OWASP, rate limit, bot/geo)") {
+        Container(spa_static, "bp-web-spa (static)", "S3 origin", "SPA served by the CDN")
+    }
+}
+
+' ---------------- External (outside AWS) ----------------
+Deployment_Node(ext, "External providers / On-prem", "Outside AWS") {
+    System_Ext(core, "Core Banking", "System of record (on-prem/other DC). Does NOT reside in AWS.")
+    System_Ext(idp, "OIDC IdP (production)", "OAuth2/OIDC")
+    System_Ext(facial, "Facial Provider", "Identity verification")
+    System_Ext(email, "Email Provider", "SES/3rd party")
+    System_Ext(push, "Push Provider", "APNs/FCM")
+}
+
+' ---------------- AWS Region ----------------
+Deployment_Node(aws, "AWS Region (assumed: us-east-1)", "BP AWS account") {
+
+    Deployment_Node(apigw, "Amazon API Gateway", "Regional HTTP API + JWT authorizer") {
+    }
+
+    Deployment_Node(vpc, "Amazon VPC 10.0.0.0/16", "Private network") {
+
+        ' ---- AZ A ----
+        Deployment_Node(azA, "Availability Zone A", "us-east-1a") {
+            Deployment_Node(pubA, "Public subnet A (10.0.0.0/24)", "") {
+                Deployment_Node(albA, "ALB (AZ-A node) + NAT GW", "Application Load Balancer") {
+                }
+            }
+            Deployment_Node(privA, "Private subnet A (10.0.10.0/24)", "") {
+                Deployment_Node(ecsA, "ECS Fargate (AZ-A)", "BP cluster") {
+                    Container(svcA, "bp-*-service (tasks)", "NestJS on Fargate", "bff, gateway-svc, customer, accounts, movements, transfer, payment, onboarding, notification, audit, core-integration, complementary, identity-adapter")
+                }
+                ContainerDb(auroraW, "Aurora PostgreSQL - Writer", "Aurora (Multi-AZ)", "Orders, idempotency (UNIQUE), Outbox, ACL correlation, operational audit")
+                ContainerDb(redisP, "ElastiCache Redis - Primary", "Redis", "Cache-aside + BFF session")
+            }
+        }
+
+        ' ---- AZ B ----
+        Deployment_Node(azB, "Availability Zone B", "us-east-1b") {
+            Deployment_Node(pubB, "Public subnet B (10.0.1.0/24)", "") {
+                Deployment_Node(albB, "ALB (AZ-B node) + NAT GW", "Application Load Balancer") {
+                }
+            }
+            Deployment_Node(privB, "Private subnet B (10.0.11.0/24)", "") {
+                Deployment_Node(ecsB, "ECS Fargate (AZ-B)", "BP cluster") {
+                    Container(svcB, "bp-*-service (tasks)", "NestJS on Fargate", "Replicas of the same services (auto scaling)")
+                }
+                ContainerDb(auroraR, "Aurora PostgreSQL - Reader/Standby", "Aurora", "Automatic failover + read replica")
+                ContainerDb(redisR, "ElastiCache Redis - Replica", "Redis", "Failover")
+            }
+        }
+
+        ' ---- Connectivity to the Core ----
+        Deployment_Node(gw2core, "VPN Gateway / Direct Connect", "Secure hybrid connectivity") {
+        }
+    }
+
+    ' ---- Regional managed services ----
+    Deployment_Node(msg, "Amazon EventBridge + SQS", "Messaging") {
+        ContainerQueue(bus, "bp-event-bus", "EventBridge (routing) + SQS", "Work queues")
+        ContainerQueue(dlq, "DLQ", "SQS Dead Letter Queue", "Non-processable messages")
+    }
+    Deployment_Node(sec, "Secrets Manager + KMS", "Security") {
+    }
+    Deployment_Node(obs, "CloudWatch + X-Ray (OTel)", "Observability") {
+    }
+    Deployment_Node(s3, "Amazon S3", "Objects") {
+        Container(s3files, "Onboarding evidence", "S3 + KMS", "Encrypted references/score")
+        Container(s3audit, "bp-audit-archive", "S3 Object Lock (WORM)", "Immutable protected retention")
+    }
+}
+
+' ================= Flows =================
+Rel(cliente, r53, "Resolves domain", "DNS")
+Rel(cliente, cf, "HTTPS", "TLS")
+Rel(cf, apigw, "Origin API (mobile/API)", "HTTPS")
+Rel(cf, spa_static, "Serves SPA", "HTTPS")
+Rel(apigw, albA, "Routes to services", "HTTPS")
+Rel(apigw, albB, "Routes to services", "HTTPS")
+Rel(albA, svcA, "Balances east-west", "mTLS")
+Rel(albB, svcB, "Balances east-west", "mTLS")
+
+Rel(svcA, auroraW, "Reads/writes (ACID)", "SQL/TLS")
+Rel(svcB, auroraW, "Reads/writes (ACID)", "SQL/TLS")
+Rel(auroraW, auroraR, "Synchronous replication + failover", "Aurora")
+Rel(svcA, redisP, "Cache-aside/session", "RESP/TLS")
+Rel(redisP, redisR, "Replication", "Redis")
+
+Rel(svcA, bus, "Publishes/consumes events", "HTTPS")
+Rel(svcB, bus, "Publishes/consumes events", "HTTPS")
+Rel(bus, dlq, "Failed messages", "SQS")
+Rel(svcA, sec, "Retrieves secrets", "HTTPS")
+Rel(svcA, obs, "Logs/metrics/traces", "OTLP")
+Rel(svcA, s3files, "Encrypted evidence", "HTTPS")
+Rel(svcA, s3audit, "Exports audit (WORM)", "HTTPS")
+
+Rel(svcA, gw2core, "To the Core", "mTLS")
+Rel(gw2core, core, "VPN IPsec / Direct Connect", "mTLS")
+Rel(svcA, idp, "OIDC (JWKS/token)", "HTTPS")
+Rel(svcA, facial, "Facial verification", "HTTPS")
+Rel(svcA, email, "Email", "HTTPS")
+Rel(svcA, push, "Push", "HTTPS")
+
+SHOW_LEGEND()
+@enduml

@@ -1,0 +1,28 @@
+{
+  "name": "bp-banking",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BP Banca Digital - PoC local (monorepo pnpm). Arquitectura modular hexagonal.",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:domain": "pnpm --filter @bp/domain test",
+    "test:api": "pnpm --filter @bp/api test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "env:up": "bash infrastructure/scripts/up.sh",
+    "env:down": "bash infrastructure/scripts/down.sh",
+    "env:restart": "bash infrastructure/scripts/restart.sh",
+    "env:logs": "docker compose logs -f",
+    "api:dev": "pnpm --filter @bp/api start:dev",
+    "migrate": "pnpm --filter @bp/api migration:run",
+    "seed": "pnpm --filter @bp/api seed"
+  },
+  "devDependencies": {
+    "typescript": "5.5.4"
+  }
+}

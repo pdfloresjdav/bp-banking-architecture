@@ -1,0 +1,48 @@
+@startuml seq-06-notificaciones-email-push
+title Notifications - email and push triggered by events
+autonumber
+
+participant "bp-transfer-service" as tx
+participant "bp-event-bus" as bus
+participant "bp-notification-service" as notif
+database "bp-db-postgres\n(delivery log)" as pg
+participant "Email Provider\n(simulator)" as email
+participant "Push Provider\n(simulator)" as push
+participant "bp-audit-service" as audit
+
+tx -> bus : publish bp.transfer.confirmed.v1 (via Outbox)
+bus -> notif : deliver event
+
+notif -> notif : Idempotency by eventId
+alt Already notified (bus duplicate)
+    notif -> notif : Discard
+else New
+    notif -> pg : Record attempt (PENDING)
+    group Email
+        notif -> email : send(email, template, recipient)
+        alt delivered
+            email --> notif : 200 accepted
+            notif -> pg : mark email SENT
+            notif -> bus : publish bp.notification.sent.v1 (email)
+        else failure
+            email --> notif : error
+            notif -> pg : mark email FAILED (retry with backoff / DLQ)
+            notif -> bus : publish bp.notification.failed.v1 (email)
+        end
+    end
+    group Push
+        notif -> push : send(deviceToken, payload)
+        alt delivered
+            push --> notif : 200
+            notif -> pg : mark push SENT
+            notif -> bus : publish bp.notification.sent.v1 (push)
+        else invalid token / failure
+            push --> notif : error
+            notif -> pg : mark push FAILED
+            notif -> bus : publish bp.notification.failed.v1 (push)
+        end
+    end
+end
+bus -> audit : deliver bp.notification.*.v1
+note over notif : Informational channel: NEVER in the Core transactional path.
+@enduml
